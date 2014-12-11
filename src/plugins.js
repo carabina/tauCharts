@@ -38,5 +38,20 @@ var propagateDatumEvents = function(chart) {
     };
 };
 
+var propagateCellEvents = function(chart) {
+    return function() {
+        elementEvents.forEach(function(name) {
+            this.on(name, function(d) {
+                chart.fire('cell' + name, {
+                    elementData: d,
+                    element: this,
+                    cellData: d3.select(this.parentNode.parentNode).datum()
+                });
+            });
+        }, this);
+    };
+};
 
-export {propagateDatumEvents, Plugins};
+
+
+export {propagateDatumEvents, Plugins, propagateCellEvents};

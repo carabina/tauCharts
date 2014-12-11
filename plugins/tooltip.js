@@ -18,6 +18,9 @@
      */
     var _ = tauCharts.api._;
     var d3 = tauCharts.api.d3;
+    var dim = function (x0, x1, y0, y1) {
+        return Math.sqrt((x1 - x0) * (x1 - x0) + (y1 - y0) * (y1 - y0));
+    };
 
     function tooltip(settings) {
         settings = settings || {};
@@ -117,7 +120,21 @@
                 return (x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1);
             },
             _calculateLengthToLine: function (x0, y0, x1, y1, x2, y2) {
-                return Math.abs((x2 - x1) * (y0 - y1) - (y2 - y1) * (x0 - x1)) / Math.sqrt((x2 - x1) * (x2 - x1) + (y2 - y1) * (y2 - y1));
+                var a1 = {x: (x1 - x0), y: (y1 - y0)};
+                var b1 = {x: (x2 - x0), y: (y2 - y0)};
+                var a1b1 = a1.x * b1.x + a1.y * b1.y;
+                if (a1b1 < 0) {
+                    return dim(x0, x2, y0, y2);
+                }
+
+                var a2 = {x: (x0 - x1), y: (y0 - y1)};
+                var b2 = {x: (x2 - x1), y: (y2 - y1)};
+                var a2b2 = a2.x * b2.x + a2.y * b2.y;
+                if (a2b2 < 0) {
+                    return dim(x1, x2, y1, y2);
+                }
+
+                return Math.abs(((x1 - x0) * (y2 - y0) - (y1 - y0) * (x2 - x0)) / dim(x0, x1, y0, y1));
             },
             _generateKey: function (data) {
                 return JSON.stringify(data);
@@ -140,6 +157,83 @@
             isLine: function (data) {
                 return data.elementData.key && Array.isArray(data.elementData.values);
             },
+            lineBehavior:_.debounce(function(chart, data,coord,el) {
+                var $where = data.elementData.$where;
+                var key = this._generateKey($where);
+                var unitMeta = this._unitMeta[key];
+                if (unitMeta) {
+                    // console.log(unitMeta, coord);
+                    var dataWithCoord = this._dataWithCoords[key];
+                    var filteredData = dataWithCoord;
+                    var c = unitMeta.color.scaleDim;
+                    var categories = unitMeta.groupBy(unitMeta.partition(), c);
+                    var lines = _.map(categories, function(cat){
+                        var filteredData = dataWithCoord.filter(function (value) {
+                            return _.contains(cat.values, value.item);
+                        });
+                        var nearLine = _.reduce(filteredData, function (memo, point, index, data) {
+                            var secondPoint;
+                            var temp;
+                            if ((index + 1) === data.length) {
+                                secondPoint = data[index - 1];
+                            } else {
+                                var temp = point;
+                                secondPoint = temp;
+                                point = data[index + 1];
+                            }
+                            var h = this._calculateLengthToLine(point.x, point.y, secondPoint.x, secondPoint.y, coord[0], coord[1]);
+                            if (h < memo.h) {
+                                memo.h = h;
+                                memo.points = {
+                                    point1: point,
+                                    point2: secondPoint
+                                };
+                            }
+                            return memo;
+                        }.bind(this), {h: Infinity, points: {}});
+                        return nearLine;
+                    }.bind(this),[]);
+                    var nearLine = _.min(lines,function(line){
+                       return line.h;
+                    });
+                    if (nearLine.h < 15) {
+                        var itemWithCoord = _.min(nearLine.points, function (a) {
+                            return this._calculateLength(a.x, a.y, coord[0], coord[1]);
+                        }, this);
+                        if (this._currentElement === itemWithCoord.item) {
+                            return;
+                        }
+                        //  console.log(_.pluck(dataWithCoord,'x','y'));
+                        this._drawPoint(unitMeta.options.container, itemWithCoord.x, itemWithCoord.y, unitMeta.options.color.get(itemWithCoord.item[c]));
+                        var content = this._elementTooltip.querySelectorAll('.i-role-content');
+                        if (content[0]) {
+                            var fields = this._getFields(unitMeta);
+
+                            content[0].innerHTML = this.render(itemWithCoord.item, fields);
+                        } else {
+                            console.log('template should contain i-role-content class');
+                        }
+                        this._currentElement = itemWithCoord.item;
+                        this._show(el);
+                    } else {
+                        this._hide();
+                    }
+                    //  console.log(nearLine);
+                }
+            },250),
+            onCellMouseMove: function (chart, data) {
+                //return;
+                var $where = data.elementData.$where;
+                var key = this._generateKey($where);
+                var unitMeta = this._unitMeta[key];
+
+                if (unitMeta) {
+                    var coord = d3.mouse(unitMeta.options.container.node());
+                    var el = d3.mouse(document.body);
+                    this.lineBehavior(chart, data,coord,el);
+                }
+
+            },
             onElementMouseOver: function (chart, data) {
                 clearInterval(this._interval);
                 var key = this._generateKey(data.cellData.$where);
@@ -147,18 +241,22 @@
                 var item = data.elementData;
                 var isLine = this.isLine(data);
                 if (isLine) {
+                    return;
                     var dataWithCoord = this._dataWithCoords[key];
                     var filteredData = dataWithCoord.filter(function (value) {
                         return _.contains(item.values, value.item);
                     });
                     var nearLine = _.reduce(filteredData, function (memo, point, index, data) {
                         var secondPoint;
+                        var temp;
                         if ((index + 1) === data.length) {
                             secondPoint = data[index - 1];
                         } else {
-                            secondPoint = data[index + 1];
+                            var temp = point;
+                            secondPoint = temp;
+                            point = data[index + 1];
                         }
-                        var h = this._calculateLengthToLine(coord[0], coord[1], point.x, point.y, secondPoint.x, secondPoint.y);
+                        var h = this._calculateLengthToLine(point.x, point.y, secondPoint.x, secondPoint.y, coord[0], coord[1]);
                         if (h < memo.h) {
                             memo.h = h;
                             memo.points = {
@@ -190,11 +288,11 @@
                 this._currentElement = item;
             },
             onElementMouseOut: function () {
-                this._hide();
+               // this._hide();
             },
-            _show: function () {
+            _show: function (el) {
                 this._tooltip.show();
-                var el = d3.mouse(this._elementTooltip.parentNode);
+               // var el = d3.mouse(this._elementTooltip.parentNode);
                 this._tooltip.position(el[0], el[1]).updateSize();
             },
             _hide: function () {

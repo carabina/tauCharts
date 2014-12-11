@@ -107,7 +107,7 @@ var coords = {
         var container = options
             .container
             .append('g')
-            .attr('class', CSS_PREFIX + 'cell ' + 'cell')
+            .attr('class', CSS_PREFIX + 'cell ' + 'cell' + ' i-role-cell')
             .attr('transform', utilsDraw.translate(L, T))
             .datum({'$where': node.$where});
 

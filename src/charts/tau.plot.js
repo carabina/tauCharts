@@ -3,7 +3,7 @@ import {Tooltip} from '../api/balloon';
 import {Emitter} from '../event';
 import {SpecEngineFactory} from '../spec-engine-factory';
 import {LayoutEngineFactory} from '../layout-engine-factory';
-import {Plugins, propagateDatumEvents} from '../plugins';
+import {Plugins, propagateDatumEvents, propagateCellEvents} from '../plugins';
 import {utils} from '../utils/utils';
 import {utilsDom} from '../utils/utils-dom';
 import {CSS_PREFIX} from '../const';
@@ -147,7 +147,6 @@ export class Plot extends Emitter {
         var content = this._layout.content;
         containerNode.appendChild(this._layout.layout);
         container = d3.select(this._layout.content);
-        //todo don't compute width if width or height were passed
         var size = xSize || {};
         if(!size.width || !size.height) {
             size = _.defaults(size, utilsDom.getContainerSize(this._layout.content.parentNode)); 
@@ -208,6 +207,7 @@ export class Plot extends Emitter {
             this
         );
         svgXElement.selectAll('.i-role-datum').call(propagateDatumEvents(this));
+        svgXElement.selectAll('.i-role-cell').call(propagateCellEvents(this));
         this.fire('render', svgXElement.node());
     }
 
