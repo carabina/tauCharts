@@ -177,7 +177,7 @@
                             if ((index + 1) === data.length) {
                                 secondPoint = data[index - 1];
                             } else {
-                                var temp = point;
+                                temp = point;
                                 secondPoint = temp;
                                 point = data[index + 1];
                             }
@@ -198,7 +198,7 @@
                     });
                     if (nearLine.h < 15) {
                         var itemWithCoord = _.min(nearLine.points, function (a) {
-                            return this._calculateLength(a.x, a.y, coord[0], coord[1]);
+                            return dim(a.x, a.y, coord[0], coord[1]);
                         }, this);
                         if (this._currentElement === itemWithCoord.item) {
                             return;
@@ -252,7 +252,7 @@
                         if ((index + 1) === data.length) {
                             secondPoint = data[index - 1];
                         } else {
-                            var temp = point;
+                            temp = point;
                             secondPoint = temp;
                             point = data[index + 1];
                         }
